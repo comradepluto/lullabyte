@@ -1,6 +1,6 @@
 # lullabyte
 
-a cute little PyQt5 HTTP flood simulator for learning about network traffic and cybersecurity.
+a cute little HTTP flood simulator for learning about network traffic and cybersecurity. available as a PyQt5 GUI or a colorama-powered terminal wizard.
 
 > **please be nice.** this tool is only for authorized testing, learning, and research. don't use it against anything you don't own or have explicit permission to test. that's not cool and it's illegal.
 
@@ -24,9 +24,10 @@ you'll get to see firsthand how:
 |---|---|
 | **three intensity modes** | *soft* (one request at a time), *burst* (threaded), and *flood* (multiplied concurrent threads) |
 | **auto proxy rotation** | grabs live proxy lists from multiple sources and rotates through them automatically |
-| **live logging** | timestamped logs stream to the console in real time via Qt signals |
+| **live logging** | timestamped logs stream to the console in real time via Qt signals (GUI) or progress bar (terminal) |
 | **progress bar** | watch your requests go out with a live progress indicator |
 | **user-agent spoofing** | randomly picks a browser fingerprint from a pool of common ones |
+| **two interfaces** | `lullabyte-gui.py` for a pink PyQt5 GUI, `lullabyte-terminal.sh` for a guided terminal wizard |
 | **cross-platform installer** | `install_lullabyte.sh` detects your OS and sets everything up for you |
 
 ---
@@ -54,23 +55,40 @@ if you're studying this from a defensive angle, here's what each pattern looks l
 ## installation
 
 ```bash
-# using the installer (linux/macOS)
+# using the installer (linux/macOS) - installs the GUI version
 chmod +x install_lullabyte.sh
 ./install_lullabyte.sh
 
-# or just do it yourself
+# or install manually
 pip install PyQt5 requests Pillow
-python3 lullabyte.py
+python3 lullabyte-gui.py
+
+# for the terminal version
+chmod +x lullabyte-terminal.sh
+./lullabyte-terminal.sh
 ```
 
 ## how to use
 
-1. run the app
+### gui version (`lullabyte-gui.py`)
+
+1. run `python3 lullabyte-gui.py`
 2. type in your target url (make sure it starts with `http://` or `https://`)
 3. pick how many requests you want to send
 4. choose an intensity mode
 5. toggle proxy rotation if you'd like
 6. hit **launch** to start, **stop** to halt
+
+### terminal version (`lullabyte-terminal.sh`)
+
+1. run `./lullabyte-terminal.sh`
+2. pick "launch an attack" from the menu
+3. type in your target url
+4. enter how many requests to send
+5. pick an intensity mode (soft, burst, or flood)
+6. choose whether to use proxy rotation
+7. review your settings and press enter to launch
+8. watch the progress bar fill up
 
 ---
 

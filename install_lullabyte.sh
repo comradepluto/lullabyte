@@ -13,7 +13,7 @@ elif [ -f /etc/debian_version ]; then
 elif [ -f /etc/os-release ] && grep -q "like \"Arch\"" /etc/os-release; then
     echo "Detected: Arch Linux/Manjaro"
     PKG_MANAGER="pacman"
-elif [ -f /usr/libexec/wlanctl-ng ]; then # simple check for macos (often present) or check path
+elif [ -f /usr/libexec/wlanctl-ng ]; then
     if [ -d "/System/Library/Frameworks" ]; then
         echo "Detected: macOS"
         PKG_MANAGER="brew"
@@ -38,17 +38,19 @@ fi
 
 echo "Using Package Manager: $PKG_MANAGER"
 
-# define packages needed
+# define packages needed (gui + terminal deps)
 PACKAGES=""
 
 if [ "$PKG_MANAGER" = "pacman" ]; then
-    PACKAGES="python python-pip python-pillow python-pyqt5"
+    # gui: python-pyqt5, python-pillow, python-requests
+    # terminal: python-colorama
+    PACKAGES="python python-pip python-pillow python-pyqt5 python-colorama python-requests"
 elif [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
-    PACKAGES="python3 python3-pip python3-Pillow python3-PyQt5"
+    PACKAGES="python3 python3-pip python3-Pillow python3-PyQt5 python3-colorama python3-requests"
 elif [ "$PKG_MANAGER" = "apt-get" ]; then
-    PACKAGES="python3 python3-pip python3-pil python3-pyqt5"
+    PACKAGES="python3 python3-pip python3-pil python3-pyqt5 python3-colorama python3-requests"
 elif [ "$PKG_MANAGER" = "brew" ]; then
-    PACKAGES="py310-pillow py310-pyqt5 requests" # assuming python 3.10, adjust if needed
+    PACKAGES="python pyqt5 pillow colorama requests"
 fi
 
 # install via package manager
@@ -72,10 +74,12 @@ fi
 if [ "$PKG_MANAGER" = "pip3" ]; then
     echo "Installing dependencies via pip..."
     python3 -m pip install --upgrade pip
-    python3 -m pip install PyQt5 Pillow requests
+    python3 -m pip install PyQt5 Pillow requests colorama
 fi
 
 echo ""
 echo "=== INSTALLATION COMPLETE ==="
-echo "Running Lullabyte..."
-python3 lullabyte.py
+echo ""
+echo "  run the gui:    python3 lullabyte-gui.py"
+echo "  run the terminal: ./lullabyte-terminal.sh"
+echo ""
