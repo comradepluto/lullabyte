@@ -2,13 +2,13 @@
 
 A fun little PyQt5 HTTP flood simulator made for learning about cybersecurity.
 
-> **Heads up:** This tool is strictly for authorized security testing, learning, and research. Please don't use it against anything you don't own or have permission to test — that's not cool and it's illegal.
+> **Heads up:** This tool is strictly for authorized security testing, learning, and research. Please don't use it against anything you don't own or have permission to test, that's not cool and it's illegal.
 
 ---
 
 ## What's This All About?
 
-LULLABYTE was built as a hands-on learning tool for cybersecurity students and anyone curious about how network traffic works. It's a great way to get your feet wet with:
+LULLABYTE was built as a hands on learning tool for cybersecurity students and anyone curious about how network traffic works. It's a great way to get your feet wet with:
 
 - Understanding how HTTP flood attacks work and how traffic gets distributed
 - Seeing how proxy rotation helps avoid basic rate-limiting
