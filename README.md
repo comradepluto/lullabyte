@@ -1,91 +1,91 @@
-# LULLABYTE
+# lullabyte
 
-A fun little PyQt5 HTTP flood simulator made for learning about cybersecurity.
+a cute little PyQt5 HTTP flood simulator for learning about network traffic and cybersecurity.
 
-> **Heads up:** This tool is strictly for authorized security testing, learning, and research. Please don't use it against anything you don't own or have permission to test, that's not cool and it's illegal.
-
----
-
-## What's This All About?
-
-LULLABYTE was built as a hands on learning tool for cybersecurity students and anyone curious about how network traffic works. It's a great way to get your feet wet with:
-
-- Understanding how HTTP flood attacks work and how traffic gets distributed
-- Seeing how proxy rotation helps avoid basic rate-limiting
-- Learning how GUI apps talk to background network threads
-- Playing with thread management and concurrency in Python (PyQt5 `QThread`)
+> **please be nice.** this tool is only for authorized testing, learning, and research. don't use it against anything you don't own or have explicit permission to test. that's not cool and it's illegal.
 
 ---
 
-## What Can It Do?
+## what is this?
 
-| Feature | What It Does |
+lullabyte is a hands-on tool for anyone curious about how HTTP traffic works under pressure. whether you're a cybersecurity student, a curious dev, or just want to poke around and learn, this is for you.
+
+you'll get to see firsthand how:
+- HTTP flood requests behave at different intensities
+- proxy rotation helps mix up where traffic comes from
+- GUI apps talk to background threads without freezing
+- Python's threading model handles concurrent network calls
+
+---
+
+## features
+
+| what | how it works |
 |---|---|
-| **Three attack modes** | *Stealth* (sequential requests), *Rage* (threaded bursts), and *Overkill* (multiplied concurrent threads) — each one shows a different level of HTTP flood intensity |
-| **Auto proxy rotation** | Grabs live public proxy lists from multiple sources and rotates through them, just like real distributed traffic |
-| **Real-time logging** | Timestamped logs stream to the GUI console via Qt signals — a nice way to see thread-to-UI communication in action |
-| **Progress tracking** | A live progress bar that updates as requests go out |
-| **User-Agent spoofing** | Randomizes the `User-Agent` header from a pool of common browser strings |
-| **Cross-platform installer** | `install_lullabyte.sh` figures out your OS (Fedora, Debian, Arch, macOS) and installs everything for you |
+| **three intensity modes** | *soft* (one request at a time), *burst* (threaded), and *flood* (multiplied concurrent threads) |
+| **auto proxy rotation** | grabs live proxy lists from multiple sources and rotates through them automatically |
+| **live logging** | timestamped logs stream to the console in real time via Qt signals |
+| **progress bar** | watch your requests go out with a live progress indicator |
+| **user-agent spoofing** | randomly picks a browser fingerprint from a pool of common ones |
+| **cross-platform installer** | `install_lullabyte.sh` detects your OS and sets everything up for you |
 
 ---
 
-## Threats & Attack Patterns
+## attack patterns & defenses
 
-Understanding these is key to building good defenses:
+if you're studying this from a defensive angle, here's what each pattern looks like and how to block it:
 
-| Attack Pattern | How It Works | How To Defend |
+| pattern | what it does | how to defend |
 |---|---|---|
-| **HTTP GET Flood** | Fires a ton of GET requests at a server to overwhelm it | Rate limiting, CAPTCHAs, WAF rules |
-| **Distributed requests via proxies** | Routes traffic through rotating proxies to hide the origin | Deep packet inspection, behavioral analysis, geo-filtering |
-| **Thread amplification (Overkill mode)** | Spawns multiple threads per iteration to multiply request volume | Connection limits per IP, concurrency throttling |
-| **User-Agent randomization** | Rotates browser fingerprints to dodge basic signature filtering | Anomaly detection on request patterns, TLS fingerprinting |
+| **HTTP GET flood** | fires a lot of GET requests at a server | rate limiting, CAPTCHAs, WAF rules |
+| **distributed via proxies** | routes traffic through rotating proxies | deep packet inspection, behavioral analysis |
+| **thread amplification** | spawns multiple threads per iteration | connection limits per IP, concurrency throttling |
+| **UA randomization** | rotates browser fingerprints to dodge filters | anomaly detection, TLS fingerprinting |
 
 ---
 
-## Requirements
+## requirements
 
-- Python 3.7+
+- python 3.7+
 - PyQt5
 - requests
+- Pillow (for the title rendering)
 
-## Installation
+## installation
 
 ```bash
-# using the installer (Linux/macOS)
+# using the installer (linux/macOS)
 chmod +x install_lullabyte.sh
 ./install_lullabyte.sh
 
-# or just do it manually
-pip install PyQt5 requests
+# or just do it yourself
+pip install PyQt5 requests Pillow
 python3 lullabyte.py
 ```
 
-## How To Use It
+## how to use
 
-```
-1. Fire up the app
-2. Type in the target URL (needs to start with http:// or https://)
-3. Set how many requests you want to send
-4. Pick an attack mode
-5. Toggle proxy rotation if you want
-6. Hit LAUNCH LULLABYTE to start or ABORT to stop
-```
+1. run the app
+2. type in your target url (make sure it starts with `http://` or `https://`)
+3. pick how many requests you want to send
+4. choose an intensity mode
+5. toggle proxy rotation if you'd like
+6. hit **launch** to start, **stop** to halt
 
 ---
 
-## For Instructors & Students
+## for instructors & students
 
-This is a compact (~300 lines) single-file app that works great as a practical exercise:
+this is a compact (~250 lines) single-file app that works really well as a classroom exercise:
 
-- **Reverse engineering** — Look at how the attack thread spawns and manages connections
-- **Network forensics** — Grab the traffic with Wireshark and study the request patterns from each mode
-- **Defensive tooling** — Write a Snort/Suricata rule to detect UA rotation or proxy abuse
-- **Concurrency bugs** — Check out the thread safety of shared state in `AttackThread`
-- **GUI architecture** — Study PyQt5 signal/slot patterns for thread-safe UI updates
+- **reverse engineering** — look at how the attack thread manages its connections
+- **network forensics** — grab the traffic with Wireshark and study request patterns from each mode
+- **defensive tooling** — write a Snort or Suricata rule to detect UA rotation or proxy abuse
+- **concurrency bugs** — examine thread safety of shared state in `AttackThread`
+- **GUI architecture** — study PyQt5 signal/slot patterns for thread-safe UI updates
 
 ---
 
-## License
+## license
 
-MIT License — see [LICENSE](LICENSE) for the full details.
+MIT License — see [LICENSE](LICENSE) for details.
