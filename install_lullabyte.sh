@@ -3,7 +3,7 @@
 echo "=== LULLABYTE AUTO-INSTALLER ==="
 echo "Detecting Operating System..."
 
-# Detect OS
+# detect os
 if [ -f /etc/redhat-release ] || [ -f /etc/fedora-release ]; then
     echo "Detected: Fedora/RHEL/CentOS/Scientific Linux"
     PKG_MANAGER="dnf"
@@ -13,14 +13,14 @@ elif [ -f /etc/debian_version ]; then
 elif [ -f /etc/os-release ] && grep -q "like \"Arch\"" /etc/os-release; then
     echo "Detected: Arch Linux/Manjaro"
     PKG_MANAGER="pacman"
-elif [ -f /usr/libexec/wlanctl-ng ]; then # Simple check for macOS (often present) or check path
+elif [ -f /usr/libexec/wlanctl-ng ]; then # simple check for macos (often present) or check path
     if [ -d "/System/Library/Frameworks" ]; then
         echo "Detected: macOS"
         PKG_MANAGER="brew"
     fi
 fi
 
-# Fallback detection if specific files not found but common paths exist
+# fallback detection if specific files not found but common paths exist
 if [ -z "$PKG_MANAGER" ]; then
     if command -v pacman &> /dev/null; then
         PKG_MANAGER="pacman"
@@ -38,7 +38,7 @@ fi
 
 echo "Using Package Manager: $PKG_MANAGER"
 
-# Define packages needed
+# define packages needed
 PACKAGES=""
 
 if [ "$PKG_MANAGER" = "pacman" ]; then
@@ -48,10 +48,10 @@ elif [ "$PKG_MANAGER" = "dnf" ] || [ "$PKG_MANAGER" = "yum" ]; then
 elif [ "$PKG_MANAGER" = "apt-get" ]; then
     PACKAGES="python3 python3-pip python3-pil python3-pyqt5"
 elif [ "$PKG_MANAGER" = "brew" ]; then
-    PACKAGES="py310-pillow py310-pyqt5 requests" # Assuming Python 3.10, adjust if needed
+    PACKAGES="py310-pillow py310-pyqt5 requests" # assuming python 3.10, adjust if needed
 fi
 
-# Install via Package Manager
+# install via package manager
 if [ -n "$PACKAGES" ] && [ "$PKG_MANAGER" != "pip3" ]; then
     echo "Installing system dependencies..."
     
@@ -68,7 +68,7 @@ if [ -n "$PACKAGES" ] && [ "$PKG_MANAGER" != "pip3" ]; then
     fi
 fi
 
-# Final Fallback: Install via pip if not already done or as last resort
+# final fallback: install via pip if not already done or as last resort
 if [ "$PKG_MANAGER" = "pip3" ]; then
     echo "Installing dependencies via pip..."
     python3 -m pip install --upgrade pip
