@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel,
     QLineEdit, QPushButton, QTextEdit, QCheckBox,
-    QSizePolicy, QComboBox, QProgressBar, QHBoxLayout
+    QSizePolicy, QComboBox, QProgressBar, QHBoxLayout, QFrame
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QFont, QColor
@@ -156,6 +156,8 @@ def filter_proxies(proxies, max_workers=64, timeout=3, check_url="https://exampl
 class AttackThread(QThread):
     log_signal = pyqtSignal(str)
     update_progress = pyqtSignal(int)
+    proxy_pool_signal = pyqtSignal(list, bool)
+    last_proxy_signal = pyqtSignal(str)
 
     def __init__(self, url, num_requests, attack_mode, use_proxy):
         super().__init__()
@@ -194,6 +196,7 @@ class AttackThread(QThread):
 
     def run(self):
         self.log_signal.emit("~ lullabyte activated ~")
+        self._emit_pool()
 
         if self.use_proxy:
             self.log_signal.emit("fetching proxies...")
@@ -202,6 +205,7 @@ class AttackThread(QThread):
             self.log_signal.emit(f"scraped {len(proxies)} proxies, testing which actually work...")
             valid = filter_proxies(proxies)
             self.proxies = [{"http": p, "https": p} for p in valid]
+            self._emit_pool()
             if self.proxies:
                 self.log_signal.emit(f"{len(self.proxies)} working proxies :3")
             else:
@@ -258,8 +262,15 @@ class AttackThread(QThread):
     def _pick_proxy(self):
         with self.proxy_lock:
             if self.use_proxy and self.proxies:
-                return random.choice(self.proxies)
+                proxy = random.choice(self.proxies)
+                self.last_proxy_signal.emit(proxy["http"] if isinstance(proxy, dict) else str(proxy))
+                return proxy
         return None
+
+    def _emit_pool(self):
+        with self.proxy_lock:
+            pool_copy = list(self.proxies)
+        self.proxy_pool_signal.emit(pool_copy, self.use_proxy)
 
     def _handle_result(self, fut, force=False):
         if not force and not self.running:
@@ -290,6 +301,7 @@ class AttackThread(QThread):
             fresh = [{"http": p, "https": p} for p in valid]
             with self.proxy_lock:
                 self.proxies = fresh
+            self._emit_pool()
             self.log_signal.emit(f"proxies refreshed: {len(fresh)} working")
         except Exception as e:
             self.log_signal.emit(f"[error] proxy refresh failed: {e}")
@@ -480,6 +492,59 @@ class MainWindow(QMainWindow):
         self.use_proxy.setChecked(True)
         layout.addWidget(self.use_proxy)
 
+        # advanced toggle
+        self.advanced_button = QPushButton("advanced")
+        self.advanced_button.setCheckable(True)
+        self.advanced_button.setStyleSheet(
+            "QPushButton { background-color: transparent; color: " + TEXT_LIGHT +
+            "; border: 1.5px solid " + BORDER + "; font-size: 12px; padding: 6px 12px; }"
+            "QPushButton:checked { border-color: " + ACCENT + "; color: " + TEXT_DARK + "; }"
+        )
+        self.advanced_button.toggled.connect(self.toggle_advanced)
+        layout.addWidget(self.advanced_button)
+
+        # advanced panel (hidden by default)
+        self.advanced_panel = QWidget()
+        self.advanced_panel.setVisible(False)
+        adv_layout = QVBoxLayout()
+        adv_layout.setSpacing(6)
+        adv_layout.setContentsMargins(12, 8, 12, 8)
+
+        self.proxy_count_label = QLabel("proxies: -")
+        self.proxy_count_label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; font-weight: 700;")
+        adv_layout.addWidget(self.proxy_count_label)
+
+        self.proxy_status_label = QLabel("status: idle")
+        self.proxy_status_label.setStyleSheet(f"color: {TEXT_MID}; font-size: 12px;")
+        adv_layout.addWidget(self.proxy_status_label)
+
+        self.last_proxy_label = QLabel("last proxy: -")
+        self.last_proxy_label.setStyleSheet(f"color: {TEXT_MID}; font-size: 12px;")
+        adv_layout.addWidget(self.last_proxy_label)
+
+        proxy_list_label = QLabel("proxy pool")
+        proxy_list_label.setStyleSheet(f"color: {TEXT_LIGHT}; font-size: 11px; margin-top: 4px;")
+        adv_layout.addWidget(proxy_list_label)
+
+        self.proxy_list = QTextEdit()
+        self.proxy_list.setReadOnly(True)
+        self.proxy_list.setMinimumHeight(100)
+        self.proxy_list.setMaximumHeight(180)
+        self.proxy_list.setPlaceholderText("no proxies loaded")
+        adv_layout.addWidget(self.proxy_list)
+
+        self.advanced_panel.setLayout(adv_layout)
+        advanced_frame = QWidget()
+        advanced_frame.setObjectName("advancedFrame")
+        advanced_frame.setStyleSheet(
+            "#advancedFrame { background-color: " + BG_INPUT + "; border: 1.5px solid " + BORDER + "; border-radius: 10px; }"
+        )
+        af_layout = QVBoxLayout()
+        af_layout.setContentsMargins(0, 0, 0, 0)
+        af_layout.addWidget(self.advanced_panel)
+        advanced_frame.setLayout(af_layout)
+        layout.addWidget(advanced_frame)
+
         # buttons
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(12)
@@ -513,6 +578,27 @@ class MainWindow(QMainWindow):
         self.log_output.append(message)
         self.log_output.ensureCursorVisible()
 
+    def toggle_advanced(self, checked):
+        self.advanced_panel.setVisible(checked)
+
+    def on_proxy_pool(self, pool, use_proxy):
+        if not use_proxy:
+            self.proxy_status_label.setText("status: proxies disabled")
+            return
+        if not pool:
+            self.proxy_count_label.setText("proxies: 0")
+            self.proxy_status_label.setText("status: fetching / validating...")
+            self.proxy_list.clear()
+            return
+        self.proxy_count_label.setText(f"proxies: {len(pool)}")
+        self.proxy_status_label.setText("status: ready (auto-refreshing)")
+        self.proxy_list.setPlainText("\n".join(
+            p["http"] if isinstance(p, dict) else str(p) for p in pool
+        ))
+
+    def on_last_proxy(self, proxy):
+        self.last_proxy_label.setText(f"last proxy: {proxy}")
+
     def start_attack(self):
         url = self.url_input.text().strip()
         num_requests_str = self.requests_input.text().strip()
@@ -543,6 +629,10 @@ class MainWindow(QMainWindow):
         self.attack_thread = AttackThread(url, num_requests, attack_mode, use_proxy)
         self.attack_thread.log_signal.connect(self.log_message)
         self.attack_thread.update_progress.connect(self.progress_bar.setValue)
+        self.attack_thread.proxy_pool_signal.connect(self.on_proxy_pool)
+        self.attack_thread.last_proxy_signal.connect(self.on_last_proxy)
+        if not use_proxy:
+            self.on_proxy_pool([], False)
         self.attack_thread.start()
 
     def stop_attack(self):
