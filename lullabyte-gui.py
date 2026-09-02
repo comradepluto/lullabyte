@@ -107,6 +107,38 @@ def scrape_proxies():
     return list(set(proxies))
 
 
+def filter_proxies(proxies, max_workers=32, timeout=6, check_url="https://example.com"):
+    """test each proxy against a benign endpoint and keep only working ones."""
+    if not proxies:
+        return []
+
+    retry = Retry(total=0)
+    adapter = HTTPAdapter(pool_connections=max_workers, pool_maxsize=max_workers, max_retries=retry)
+    session = requests.Session()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.trust_env = False
+
+    valid = []
+    lock = threading.Lock()
+
+    def test(proxy):
+        proxies_map = {"http": proxy, "https": proxy}
+        try:
+            resp = session.get(check_url, proxies=proxies_map, timeout=timeout, verify=False)
+            if resp.status_code == 200:
+                with lock:
+                    valid.append(proxy)
+        except requests.exceptions.RequestException:
+            pass
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        list(executor.map(test, proxies))
+
+    session.close()
+    return valid
+
+
 class AttackThread(QThread):
     log_signal = pyqtSignal(str)
     update_progress = pyqtSignal(int)
@@ -150,12 +182,14 @@ class AttackThread(QThread):
         if self.use_proxy:
             self.log_signal.emit("fetching proxies...")
             proxies = scrape_proxies()
-            self.proxies = [p for p in proxies if p]
-            self.proxies = [{"http": p, "https": p} for p in self.proxies]
+            proxies = [p for p in proxies if p]
+            self.log_signal.emit(f"scraped {len(proxies)} proxies, testing which actually work...")
+            valid = filter_proxies(proxies)
+            self.proxies = [{"http": p, "https": p} for p in valid]
             if self.proxies:
-                self.log_signal.emit(f"found {len(self.proxies)} proxies :3")
+                self.log_signal.emit(f"{len(self.proxies)} working proxies :3")
             else:
-                self.log_signal.emit("no proxies found, going direct")
+                self.log_signal.emit("no working proxies found, going direct")
 
         if self.attack_mode == "soft":
             workers = 1
