@@ -108,10 +108,18 @@ def scrape_proxies():
     return list(set(proxies))
 
 
-def filter_proxies(proxies, max_workers=32, timeout=6, check_url="https://example.com"):
-    """test each proxy against a benign endpoint and keep only working ones."""
+def filter_proxies(proxies, max_workers=64, timeout=3, check_url="https://example.com",
+                   sample=300, target=100):
+    """test a random sample of proxies against a benign endpoint, keeping working ones.
+
+    Stops as soon as `target` working proxies are found (or the sample is exhausted),
+    so it returns quickly instead of testing every proxy in a large list.
+    """
     if not proxies:
         return []
+
+    if len(proxies) > sample:
+        proxies = random.sample(proxies, sample)
 
     retry = Retry(total=0)
     adapter = HTTPAdapter(pool_connections=max_workers, pool_maxsize=max_workers, max_retries=retry)
@@ -122,14 +130,19 @@ def filter_proxies(proxies, max_workers=32, timeout=6, check_url="https://exampl
 
     valid = []
     lock = threading.Lock()
+    enough = threading.Event()
 
     def test(proxy):
+        if enough.is_set():
+            return
         proxies_map = {"http": proxy, "https": proxy}
         try:
             resp = session.get(check_url, proxies=proxies_map, timeout=timeout, verify=False)
             if resp.status_code == 200:
                 with lock:
                     valid.append(proxy)
+                    if len(valid) >= target:
+                        enough.set()
         except requests.exceptions.RequestException:
             pass
 
