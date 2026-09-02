@@ -497,7 +497,8 @@ class MainWindow(QMainWindow):
         self.advanced_button.setCheckable(True)
         self.advanced_button.setStyleSheet(
             "QPushButton { background-color: transparent; color: " + TEXT_LIGHT +
-            "; border: 1.5px solid " + BORDER + "; font-size: 12px; padding: 6px 12px; }"
+            "; font-family: 'Quicksand', 'Noto Sans', sans-serif; font-size: 14px; font-weight: 700;" +
+            " border: 1.5px solid " + BORDER + "; padding: 8px 16px; }"
             "QPushButton:checked { border-color: " + ACCENT + "; color: " + TEXT_DARK + "; }"
         )
         self.advanced_button.toggled.connect(self.toggle_advanced)
@@ -507,29 +508,40 @@ class MainWindow(QMainWindow):
         self.advanced_panel = QWidget()
         self.advanced_panel.setVisible(False)
         adv_layout = QVBoxLayout()
-        adv_layout.setSpacing(6)
-        adv_layout.setContentsMargins(12, 8, 12, 8)
+        adv_layout.setSpacing(8)
+        adv_layout.setContentsMargins(16, 10, 16, 14)
 
         self.proxy_count_label = QLabel("proxies: -")
-        self.proxy_count_label.setStyleSheet(f"color: {TEXT_DARK}; font-size: 13px; font-weight: 700;")
+        self.proxy_count_label.setStyleSheet(
+            f"color: {TEXT_DARK}; font-family: 'Quicksand', 'Noto Sans', sans-serif; font-size: 15px; font-weight: 700;"
+        )
         adv_layout.addWidget(self.proxy_count_label)
 
         self.proxy_status_label = QLabel("status: idle")
-        self.proxy_status_label.setStyleSheet(f"color: {TEXT_MID}; font-size: 12px;")
+        self.proxy_status_label.setStyleSheet(
+            f"color: {TEXT_MID}; font-family: 'Quicksand', 'Noto Sans', sans-serif; font-size: 14px;"
+        )
         adv_layout.addWidget(self.proxy_status_label)
 
         self.last_proxy_label = QLabel("last proxy: -")
-        self.last_proxy_label.setStyleSheet(f"color: {TEXT_MID}; font-size: 12px;")
+        self.last_proxy_label.setStyleSheet(
+            f"color: {TEXT_MID}; font-family: 'Quicksand', 'Noto Sans', sans-serif; font-size: 14px;"
+        )
         adv_layout.addWidget(self.last_proxy_label)
 
         proxy_list_label = QLabel("proxy pool")
-        proxy_list_label.setStyleSheet(f"color: {TEXT_LIGHT}; font-size: 11px; margin-top: 4px;")
+        proxy_list_label.setStyleSheet(
+            f"color: {TEXT_LIGHT}; font-family: 'Quicksand', 'Noto Sans', sans-serif; font-size: 13px; margin-top: 6px; font-weight: 600;"
+        )
         adv_layout.addWidget(proxy_list_label)
 
         self.proxy_list = QTextEdit()
         self.proxy_list.setReadOnly(True)
-        self.proxy_list.setMinimumHeight(100)
-        self.proxy_list.setMaximumHeight(180)
+        self.proxy_list.setMinimumHeight(220)
+        self.proxy_list.setMaximumHeight(340)
+        self.proxy_list.setStyleSheet(
+            f"background-color: {BG_LOG}; color: {TEXT_MID}; border: 1.5px solid {BORDER}; border-radius: 10px; padding: 12px; font-family: 'Quicksand', 'Noto Sans', sans-serif; font-size: 14px;"
+        )
         self.proxy_list.setPlaceholderText("no proxies loaded")
         adv_layout.addWidget(self.proxy_list)
 
